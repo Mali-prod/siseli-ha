@@ -1421,22 +1421,23 @@ class SolarParser:
             if hz is not None:
                 state["out_hz"] = round(hz, 1)
         if len(vals) >= 3:
-            va = SolarParser._to_int(vals[2])
+            va = SolarParser._to_float(vals[2])
             if va is not None:
-                state["apparent_va"] = va
+                state["apparent_va"] = int(round(va))
         if len(vals) >= 4:
-            w = SolarParser._to_int(vals[3])
+            w = SolarParser._to_float(vals[3])
             if w is not None:
-                state["load_w"] = w
-                state["c_load_w"] = SolarParser._scale_main_power(w)
+                w_int = int(round(w))
+                state["load_w"] = w_int
+                state["c_load_w"] = SolarParser._scale_main_power(w_int)
         if len(vals) >= 5:
             pct = SolarParser._to_float(vals[4])
             if pct is not None and 0 <= pct <= 100:
                 state["load_pct"] = round(pct, 1)
         if len(vals) >= 6:
-            var_ = SolarParser._to_int(vals[5])
+            var_ = SolarParser._to_float(vals[5])
             if var_ is not None:
-                state["reactive_power_var"] = var_
+                state["reactive_power_var"] = int(round(var_))
         if len(vals) >= 13:
             upt = SolarParser._to_int(vals[12])
             if upt is not None:
@@ -1587,7 +1588,7 @@ class SolarParser:
                 state["firmware_version"] = fw
                 state["software_version"] = SolarParser._format_version_display(fw)
         if len(vals) >= 2:
-            fd = vals[1].strip()
+            fd = vals[1].strip().lstrip("(")
             if fd:
                 state["firmware_build_date"] = SolarParser._format_fw_date(fd)
 
@@ -1642,9 +1643,18 @@ class SolarParser:
             if eff is not None:
                 state["inverter_efficiency_pct"] = round(eff, 1)
 
-        # Wire mains_wdrr_value for energy dashboard: positive when grid supplies power
-        mode_now = state.get("working_mode", "")
+        # Wire mains_wdrr_value for energy dashboard: positive when grid supplies power.
+        # working_mode and mains_power_w can arrive in different MQTT packets, so fall
+        # back to LAST_STATE for whichever one is missing in this packet.
+        mode_now = (
+            state.get("working_mode")
+            or str(_shared_state.LAST_STATE.get("working_mode", ""))
+        )
         mains_w = state.get("mains_power_w")
+        if mains_w is None:
+            mains_w = SolarParser._to_float_or_none(
+                _shared_state.LAST_STATE.get("mains_power_w")
+            )
         if isinstance(mains_w, (int, float)) and mode_now == "UTI":
             state["mains_wdrr_value"] = float(mains_w)
         else:
