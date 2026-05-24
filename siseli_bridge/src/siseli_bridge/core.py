@@ -167,12 +167,14 @@ def packet_callback(pkt) -> None:
             except Exception as exc:
                 log(f"[TCP PARSE ERROR] {exc}", level="error")
 
-            if AUTO_INTERCEPT and RTR_MAC:
-                try:
-                    fwd_pkt = Ether(dst=RTR_MAC) / pkt[IP]
-                    send_layer2(fwd_pkt, SNIFF_IFACE)
-                except Exception as exc:
-                    log(f"[FWD ERROR] inverter->router {exc}", level="error")
+        # Forward ALL inverter traffic (DNS, NTP, MQTT, etc.) — must not be inside
+        # the cloud-TCP block or UDP DNS queries get black-holed during boot.
+        if AUTO_INTERCEPT and RTR_MAC:
+            try:
+                fwd_pkt = Ether(dst=RTR_MAC) / pkt[IP]
+                send_layer2(fwd_pkt, SNIFF_IFACE)
+            except Exception as exc:
+                log(f"[FWD ERROR] inverter->router {exc}", level="error")
         return
 
     if dst_ip == INVERTER_IP:
